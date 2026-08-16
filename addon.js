@@ -7,6 +7,7 @@ const manifest = require('./manifest')
 const { getEvents, getEventByTitle, titleToId, idToTitle, decodeStreamUrl } = require('./lib/scraper')
 const { getStreamUrl } = require('./lib/extractor')
 const { eventPoster } = require('./lib/teamlogos')
+const { proxyHandler, makeProxyPrefix } = require('./lib/proxy')
 
 const PREFIX = 'metegol:'
 
@@ -75,14 +76,18 @@ builder.defineStreamHandler(async (args) => {
       if (!event || !event.streams.length) return { streams: [] }
 
       // Fetches en paralelo para no superar el timeout de Stremio
+      const proxyBase = process.env.PUBLIC_BASE_URL || ''
       const results = await Promise.all(
         event.streams.map(async (s) => {
           try {
             const m3u8 = await getStreamUrl(s.url, 'https://alangulotv.si/')
+            // En deploy serverless el token queda ligado a la IP del fetch (datacenter);
+            // se sirve via proxy para que el reproductor use la misma IP del token.
+            const finalUrl = proxyBase ? makeProxyPrefix(proxyBase) + encodeURIComponent(m3u8) : m3u8
             return {
               name: s.label || s.source,
               title: s.label || s.source,
-              url: m3u8,
+              url: finalUrl,
               behaviorHints: {
                 notWebReady: true
               }
@@ -107,6 +112,7 @@ builder.defineStreamHandler(async (args) => {
 function createApp() {
   const app = express()
   app.use(express.json())
+  app.get('/proxy', proxyHandler)
   app.use(getRouter(builder.getInterface()))
   return app
 }

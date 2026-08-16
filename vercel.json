@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "env": {
+    "PUBLIC_BASE_URL": "https://metegol.vercel.app"
+  },
   "builds": [
     {
       "src": "api/index.js",
