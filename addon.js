@@ -20,10 +20,11 @@ function resolveTz(config) {
 }
 
 // Horario del partido en la zona del usuario: usa la fecha exacta de agenda18
-// si existe; si la fuente solo da hora, la asume "hoy" en la zona del usuario.
+// si existe; si la fuente solo da hora, esa hora es de Lima (UTC-5, backend de
+// agenda18) y la convertimos a la zona del usuario.
 function eventStartUtc(event, tz) {
   if (event.startUtc) return event.startUtc
-  return event.time ? wallTimeToUtc(event.time, tz) : null
+  return event.time ? wallTimeToUtc(event.time, 'America/Lima') : null
 }
 
 function buildMeta(event, config) {
