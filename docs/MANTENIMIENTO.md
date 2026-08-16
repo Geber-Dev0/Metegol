@@ -35,8 +35,10 @@ deje de funcionar, seguí esta guía para diagnosticar y arreglar.
   `Referer` alagulotv; para `la18hd.su` conviene `https://agenda18.com/`. Si un host
   nuevo lo exige, ajustá el referer por dominio.
 - Posible 3: el dominio del m3u8 bloquea la IP del servidor (datacenter). En Vercel la
-  IP es de un datacenter; si un proveedor la rechaza, no hay fix directo salvo cambiar
-  de hosting.
+  IP es de un datacenter. El addon ya sirve los streams a través de `/proxy`
+  (`lib/proxy.js`), que descarga m3u8 y segmentos desde la misma IP del token, así que
+  el reproductor siempre coincide. Si un proveedor nuevo bloqueara la IP del datacenter
+  por completo (no solo el token), no hay fix salvo cambiar de hosting.
 - Posible 4: **DRM**. Los embeds de `tarjetarojita.xyz`/`proveseat.net` y `la10tv.com`
   usan cifrado/DRM y ya se descartan en `lib/scraper-agenda18.js`. Si aparece un
   proveedor nuevo con `_econfig`, `license` o `.mpd`, descartalo igual.

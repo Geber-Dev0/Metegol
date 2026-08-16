@@ -17,6 +17,8 @@ y [agenda18.com](https://agenda18.com) (backend de futbollibre.mx / rojadirectaa
 - Al abrir un evento, extrae en **tiempo real** los enlaces HLS (`.m3u8`) de los
   servidores de terceros y los sirve a Stremio como streams reproducibles, ordenados por
   **proveedor más estable primero** (la18hd.su > fubo18.com > streamtp-golden1.click, etc.).
+- En despliegue serverless (Vercel) los streams pasan por un **proxy HLS** (`lib/proxy.js`)
+  para que los tokens (ligados a la IP del fetch) coincidan con la IP del reproductor.
 
 ## Requisitos
 
@@ -66,6 +68,7 @@ MeteGol/
 │   ├── scraper-futbollibre.js  # parsea futbollibretv.sx/eventos.js
 │   ├── scraper-agenda18.js     # consume agenda18.com/agenda.json (.mx / rojadirectaa)
 │   ├── extractor.js        # obtiene el m3u8 desde los endpoints de 3º
+│   ├── proxy.js            # proxy HLS (resuelve bloqueo por IP en serverless)
 │   └── teamlogos.js        # portadas con escudos de equipos (TheSportsDB) + fallback
 ├── test.js                 # prueba rápida de scraper + extractor
 └── docs/                   # documentación detallada

@@ -30,8 +30,11 @@ flowchart TD
     G -->|GET endpoint 3º| H[(la18hd.su / streamtp-golden1.click / streamx488.sbs)]
     H -->|HTML con playbackURL| G
     G -->|m3u8| C
-    C -->|streams| A
-    A -->|reproduce m3u8| I[(fubo18.com / tudeporteshoy.xyz / ...)]
+    C -->|streams (url del proxy)| A
+    A -->|reproduce m3u8 via /proxy| P[lib/proxy.js]
+    P -->|GET m3u8 + segmentos (misma IP del token)| I[(fubo18.com / tudeporteshoy.xyz)]
+    I -->|m3u8 + .ts| P
+    P -->|m3u8 reescrito + segmentos| A
 ```
 
 ## Capas
@@ -85,15 +88,27 @@ flowchart TD
      `.m3u8` del HTML.
    - Devuelve el `.m3u8` real.
 
-6. **Addon — `addon.js`**
+6. **Proxy HLS — `lib/proxy.js`**
+   - **Motivo:** los proveedores generan tokens **ligados a la IP del fetch**. En
+     serverless el fetch sale con IP de datacenter, y el reproductor (IP del usuario)
+     no coincide → el proveedor responde 403. El proxy resuelve esto haciendo que
+     TODOS los requests (m3u8 y segmentos) salgan desde la misma IP que generó el token.
+   - `GET /proxy?url=<m3u8|.ts>` descarga el recurso desde la IP del servidor y:
+     - Si es una playlist (`#EXTM3U`), reescribe cada segmento/variante/`URI=` para que
+       también pase por `/proxy` (`rewritePlaylist()`).
+     - Si es un segmento `.ts`, lo sirve tal cual (`video/mp2t`).
+   - En `defineStreamHandler` el m3u8 se devuelve envuelto en la URL del proxy cuando
+     hay `PUBLIC_BASE_URL` (deploy); en local se devuelve directo.
+
+7. **Addon — `addon.js`**
    - `addonBuilder(manifest)` declara recursos `catalog` + `meta` + `stream`, tipo `tv`.
    - `defineCatalogHandler` → `metas` (uno por evento) con **portada de equipos**.
    - `defineMetaHandler` → devuelve la meta del evento (necesario para que Stremio
      trate el ítem como canal de TV jugable).
    - `defineStreamHandler` → por cada enlace del evento, extrae el m3u8 en paralelo y
-     lo devuelve como stream.
-   - `createApp()` exporta un **router Express** (`getRouter`) para serverless.
-     Si se ejecuta `node addon.js`, usa `serveHTTP` para el servidor local.
+     lo devuelve como stream (a través del proxy si corresponde).
+   - `createApp()` monta Express + la ruta `/proxy` + el **router** (`getRouter`) para
+     serverless. Si se ejecuta `node addon.js`, usa `serveHTTP` para el servidor local.
 
 ## Modelo de datos de un evento
 
@@ -126,7 +141,12 @@ validez). Por eso:
 ## Despliegue serverless (Vercel)
 
 - `api/index.js` importa `createApp()` y la exporta como handler de Vercel.
-- `vercel.json` enruta todo el tráfico (`/(.*)`) a `api/index.js`.
-- Ojo: en Vercel la IP de salida es de un datacenter; si algún proveedor valida la IP
-  del cliente en sus tokens, la reproducción podría fallar (los tokens actuales
-  incluyen `ip=` de la IP que hace el fetch, así que normalmente funciona).
+- `vercel.json` enruta todo el tráfico (`/(.*)`) a `api/index.js` y define
+  `PUBLIC_BASE_URL` (la URL pública del addon).
+- **Clave:** en Vercel los tokens quedan ligados a la IP del datacenter, por eso el
+  `defineStreamHandler` devuelve el m3u8 **envuelto en `/proxy`** (`lib/proxy.js`), que
+  descarga m3u8 y segmentos desde la misma IP del token y los reescribe para el
+  reproductor. Sin el proxy, el TV recibiría 403 (IP distinta a la del token).
+- Consideraciones de Vercel: cada segmento `.ts` es una request de la función
+  serverless; el plan Hobby permite respuestas de streaming y tiene un límite de
+  ancho de banda (100 GB/mes) y de requests. Para uso personal alcanza.
