@@ -89,7 +89,10 @@ builder.defineStreamHandler(async (args) => {
               title: s.label || s.source,
               url: finalUrl,
               behaviorHints: {
-                notWebReady: true
+                // HLS via proxy https: dejar que Stremio use su player interno
+                // (ExoPlayer en Android, hls.js en web). notWebReady:true forza
+                // a player externo y causa el "switch de reproductores".
+                notWebReady: false
               }
             }
           } catch (err) {
