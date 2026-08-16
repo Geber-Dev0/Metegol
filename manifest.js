@@ -4,7 +4,7 @@ const { TZ_OPTIONS } = require('./lib/common')
 
 module.exports = {
   id: 'com.metegol.live.v3',
-  version: '1.5.0',
+  version: '1.6.0',
   name: 'MeteGol',
   description: 'Deportes en vivo: fútbol (Liga Profesional, LaLiga, Libertadores), UFC y más. Fuentes: alangulotv.si, futbollibretv.sx, agenda18.com.',
   resources: ['catalog', 'meta', 'stream'],
