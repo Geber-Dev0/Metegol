@@ -7,7 +7,7 @@ const manifest = require('./manifest')
 const { getEvents, getEventByTitle, titleToId, idToTitle, decodeStreamUrl } = require('./lib/scraper')
 const { getStreamUrl } = require('./lib/extractor')
 const { eventPoster } = require('./lib/teamlogos')
-const { proxyHandler, makeProxyPrefix } = require('./lib/proxy')
+const { proxyHandler, publicBase, proxiedUrl } = require('./lib/proxy')
 
 const PREFIX = 'metegol:'
 
@@ -83,7 +83,7 @@ builder.defineStreamHandler(async (args) => {
             const m3u8 = await getStreamUrl(s.url, 'https://alangulotv.si/')
             // En deploy serverless el token queda ligado a la IP del fetch (datacenter);
             // se sirve via proxy para que el reproductor use la misma IP del token.
-            const finalUrl = proxyBase ? makeProxyPrefix(proxyBase) + encodeURIComponent(m3u8) : m3u8
+            const finalUrl = proxyBase ? proxiedUrl(proxyBase, m3u8) : m3u8
             return {
               name: s.label || s.source,
               title: s.label || s.source,
@@ -112,7 +112,9 @@ builder.defineStreamHandler(async (args) => {
 function createApp() {
   const app = express()
   app.use(express.json())
+  // /proxy y /proxy/seg.ts (el segmento real viaja en ?url=)
   app.get('/proxy', proxyHandler)
+  app.get('/proxy/:name', proxyHandler)
   app.use(getRouter(builder.getInterface()))
   return app
 }
