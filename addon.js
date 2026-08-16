@@ -3,7 +3,7 @@
 const express = require('express')
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk')
 const getRouter = require('stremio-addon-sdk/src/getRouter')
-const landingTemplate = require('stremio-addon-sdk/src/landingTemplate')
+const configurePage = require('./lib/landing')
 const manifest = require('./manifest')
 const { getEvents, getEventByTitle, titleToId, idToTitle, decodeStreamUrl } = require('./lib/scraper')
 const { eventPoster } = require('./lib/teamlogos')
@@ -155,7 +155,7 @@ function createApp() {
   // "Configure" al instalar (redirige aqui cuando el manifest tiene config).
   // Es lo mismo que hace serveHTTP del SDK, pero nuestro createApp es custom.
   const hasConfig = !!(manifest.config || []).length
-  const landingHTML = landingTemplate(manifest)
+  const landingHTML = configurePage(manifest)
   app.get('/', (_, res) => {
     if (hasConfig) {
       return res.redirect('/configure')
