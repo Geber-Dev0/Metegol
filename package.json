@@ -20,6 +20,7 @@
   "license": "MIT",
   "dependencies": {
     "express": "^4.21.2",
+    "opentype.js": "^2.0.0",
     "sharp": "^0.35.3",
     "stremio-addon-sdk": "^1.6.10"
   }
