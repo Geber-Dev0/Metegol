@@ -8,19 +8,38 @@ const { getEvents, getEventByTitle, titleToId, idToTitle, decodeStreamUrl } = re
 const { getStreamUrl } = require('./lib/extractor')
 const { eventPoster } = require('./lib/teamlogos')
 const { proxyHandler, publicBase, proxiedUrl } = require('./lib/proxy')
+const { tzLabelToValue, formatTimeInTz, wallTimeToUtc, isLiveNow } = require('./lib/common')
 
 const PREFIX = 'metegol:'
 
 const builder = new addonBuilder(manifest)
 
-function buildMeta(event) {
+// Resuelve la zona horaria elegida por el usuario (config del addon)
+function resolveTz(config) {
+  return tzLabelToValue((config && config.timezone) || undefined)
+}
+
+// Horario del partido en la zona del usuario: usa la fecha exacta de agenda18
+// si existe; si la fuente solo da hora, la asume "hoy" en la zona del usuario.
+function eventStartUtc(event, tz) {
+  if (event.startUtc) return event.startUtc
+  return event.time ? wallTimeToUtc(event.time, tz) : null
+}
+
+function buildMeta(event, config) {
+  const tz = resolveTz(config)
+  const startUtc = eventStartUtc(event, tz)
+  const live = isLiveNow(startUtc, Date.now(), event.sport)
+  const timeStr = startUtc ? formatTimeInTz(startUtc, tz) : event.time
+
   return {
     id: PREFIX + titleToId(event.title),
     type: 'tv',
-    name: event.title,
+    name: (live ? 'EN VIVO · ' : '') + event.title,
     posterShape: 'landscape',
-    description: `${event.sport}${event.time ? ' · ' + event.time : ''} · ${event.streams.length} enlace(s) disponible(s)`,
-    releaseInfo: event.time,
+    poster: `${process.env.PUBLIC_BASE_URL || `http://127.0.0.1:${process.env.PORT || 7000}`}/poster/${encodeURIComponent(titleToId(event.title))}.png`,
+    description: `${live ? '🔴 EN VIVO' : 'Programado'} · ${event.sport}${timeStr ? ' · ' + timeStr : ''} · ${event.streams.length} enlace(s) disponible(s)`,
+    releaseInfo: timeStr,
     genres: [event.sport]
   }
 }
@@ -30,14 +49,7 @@ builder.defineCatalogHandler(async (args) => {
   if (args.type === 'tv' && args.id === 'deportes') {
     try {
       const events = await getEvents()
-      const metas = await Promise.all(
-        events.map(async (e) => {
-          const meta = buildMeta(e)
-          meta.poster = await eventPoster(e)
-          return meta
-        })
-      )
-      return { metas }
+      return { metas: events.map((e) => buildMeta(e, args.config)) }
     } catch (err) {
       console.error('[catalog] error:', err.message)
       return { metas: [] }
@@ -54,8 +66,7 @@ builder.defineMetaHandler(async (args) => {
       const event = await getEventByTitle(title)
       if (!event) return { meta: null }
 
-      const meta = buildMeta(event)
-      meta.poster = await eventPoster(event)
+      const meta = buildMeta(event, args.config)
       return { meta }
     } catch (err) {
       console.error('[meta] error:', err.message)
@@ -118,6 +129,24 @@ function createApp() {
   // /proxy y /proxy/seg.ts (el segmento real viaja en ?url=)
   app.get('/proxy', proxyHandler)
   app.get('/proxy/:name', proxyHandler)
+  // /poster/<id>.png: portada generada en PNG (sharp) porque Stremio en
+  // Android no renderiza SVG data URI como posters
+  app.get('/poster/:id', async (req, res) => {
+    try {
+      const id = req.params.id.replace(/\.png$/i, '')
+      const title = idToTitle(decodeURIComponent(id))
+      const event = title ? await getEventByTitle(title) : null
+      if (!event) return res.status(404).send('Evento no encontrado')
+      const png = await eventPoster(event)
+      if (!png) return res.status(500).send('Error generando portada')
+      res.set('Content-Type', 'image/png')
+      res.set('Cache-Control', 'public, max-age=1800, s-maxage=1800')
+      res.send(png)
+    } catch (err) {
+      console.error('[poster] error:', err.message)
+      res.status(500).send('Error generando portada')
+    }
+  })
   app.use(getRouter(builder.getInterface()))
   return app
 }
