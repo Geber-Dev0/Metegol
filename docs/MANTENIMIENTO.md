@@ -1,0 +1,96 @@
+# Mantenimiento
+
+El addon depende de varias capas externas que **no están bajo nuestro control**. Cuando
+deje de funcionar, seguí esta guía para diagnosticar y arreglar.
+
+## Capas involucradas
+
+| Capa | Ejemplo | Riesgo |
+|------|---------|--------|
+| Origen de la agenda | `alangulotv.si/agenda.php`, `futbollibretv.sx/eventos.js`, `agenda18.com/agenda.json` | Cambian estructura o caen |
+| Endpoint de reproducción | `la18hd.su`, `streamtp-golden1.click`, `streamx488.sbs` | Caen, cambian de dominio, anti-hotlink |
+| Host del m3u8 | `fubo18.com`, `tudeporteshoy.xyz` | Tokens efímeros, bloqueos por IP |
+| Portadas | `thesportsdb.com` | Rate-limit, cambio de API |
+
+## Síntomas y diagnóstico
+
+### A. El catálogo aparece vacío
+- Posible: cambiaron las fuentes de agenda.
+- Probar: `npm test` → si muestra `Eventos encontrados: 0`, inspeccioná cada fuente:
+  - `curl -A "Mozilla/5.0" https://alangulotv.si/agenda.php` y revisá `parseAgenda()`.
+  - `curl -A "Mozilla/5.0" https://futbollibretv.sx/eventos.js` y revisá el regex de
+    `EVENTOS_DATA` en `lib/scraper-futbollibre.js`.
+  - `curl -A "Mozilla/5.0" https://agenda18.com/agenda.json?v=1.1` y revisá
+    `parseAgendaJson()` en `lib/scraper-agenda18.js` (estructura Strapi).
+- Si solo una fuente falla, las otras siguen alimentando el catálogo (uso de
+  `Promise.allSettled`).
+
+### B. El catálogo carga pero los streams no reproducen
+- Posible 1: el endpoint de 3º cambió el nombre de la variable del m3u8.
+  - Probar: abrir en el navegador la URL decodificada del `r` y buscar `playbackURL`.
+  - Si ahora usa otro nombre (ej. `sourceUrl`) o cambió el formato ofuscado
+    (`kv`/`jY`), actualizá los regex en `lib/extractor.js`.
+- Posible 2: anti-hotlink / referer. Algunos endpoints devuelven un HTML distinto o
+  redirigen si no viene el `Referer` adecuado. En `lib/extractor.js` se envía
+  `Referer` alagulotv; para `la18hd.su` conviene `https://agenda18.com/`. Si un host
+  nuevo lo exige, ajustá el referer por dominio.
+- Posible 3: el dominio del m3u8 bloquea la IP del servidor (datacenter). En Vercel la
+  IP es de un datacenter; si un proveedor la rechaza, no hay fix directo salvo cambiar
+  de hosting.
+- Posible 4: **DRM**. Los embeds de `tarjetarojita.xyz`/`proveseat.net` y `la10tv.com`
+  usan cifrado/DRM y ya se descartan en `lib/scraper-agenda18.js`. Si aparece un
+  proveedor nuevo con `_econfig`, `license` o `.mpd`, descartalo igual.
+
+### C. "token expired" / el m3u8 devuelve 403
+- Esperado si el m3u8 se reutilizó tras unos minutos. El addon ya genera el token en
+  el momento del `stream`, así que no debería pasar salvo que el servidor de 3º tenga
+  un reloj desincronizado. No cachear los `url` de stream.
+
+### D. Las portadas no muestran escudos
+- TheSportsDB tiene rate-limit (~30 req/min). El addon cachea resultados en memoria
+  (TTL 6 h), pero en el primer arranque puede tardar o devolver emoji si la API se
+  satura. Las portadas siempre caen a un emoji si no hay escudo.
+
+## Checklist periódico
+
+- [ ] `npm test` devuelve eventos y al menos un m3u8 válido.
+- [ ] El primer evento reproduce en Stremio.
+- [ ] Las tres fuentes de agenda devuelven datos (verificar en catálogo).
+- [ ] Los endpoints de 3º conocidos siguen activos (ver abajo).
+
+## Dominios conocidos (a agosto 2026)
+
+- Origen de agenda: `alangulotv.si`, `futbollibretv.sx`, `agenda18.com`, `img.agenda18.com`
+- Endpoints de reproducción: `la18hd.su/vivo/canales.php`, `streamtp-golden1.click/global1.php`,
+  `streamx488.sbs/global1.php`
+- Hosts m3u8: `*.fubo18.com`, `*.tudeporteshoy.xyz`
+- Descartados (DRM/cifrado): `tarjetarojita.xyz` (`proveseat.net`), `la10tv.com`
+- Portadas: `thesportsdb.com` (API v1, key de test `3`)
+
+> Si alguno desaparece, el addon seguirá funcionando para los demás; solo hay que
+> actualizar los patrones del extractor si cambian la forma de exponer el m3u8.
+
+## Prioridad de proveedores
+
+`PROVIDER_PRIORITY` en `lib/scraper.js` ordena los streams por estabilidad. Si un
+proveedor empieza a fallar seguido, subí su número (mayor = va después):
+
+```js
+const PROVIDER_PRIORITY = {
+  'la18hd.su': 1,            // más estable, primero
+  'fubo18.com': 2,
+  'tudeporteshoy.xyz': 3,
+  'streamtp-golden1.click': 4,
+  'streamx488.sbs': 5        // menos estable, al final
+}
+```
+
+## Actualizar el addon
+
+```bash
+git pull        # o editar archivos
+npm install     # si cambian dependencias
+npm start
+```
+
+Para Vercel, cada `npm run vercel:deploy` publica la última versión.

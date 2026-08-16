@@ -1,0 +1,25 @@
+{
+  "name": "metegol",
+  "version": "1.4.0",
+  "description": "Addon de Stremio para deportes en vivo (futbol, UFC, tenis, F1). Fuentes: alangulotv.si, futbollibretv.sx, agenda18.com",
+  "main": "addon.js",
+  "scripts": {
+    "start": "node addon.js",
+    "test": "node test.js",
+    "vercel:dev": "vercel dev",
+    "vercel:build": "vercel build",
+    "vercel:deploy": "vercel --prod"
+  },
+  "keywords": [
+    "stremio",
+    "addon",
+    "live",
+    "sports",
+    "futbol"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "stremio-addon-sdk": "^1.6.10"
+  }
+}
