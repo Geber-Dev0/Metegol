@@ -5,7 +5,6 @@ const { addonBuilder, serveHTTP } = require('stremio-addon-sdk')
 const getRouter = require('stremio-addon-sdk/src/getRouter')
 const manifest = require('./manifest')
 const { getEvents, getEventByTitle, titleToId, idToTitle, decodeStreamUrl } = require('./lib/scraper')
-const { getStreamUrl } = require('./lib/extractor')
 const { eventPoster } = require('./lib/teamlogos')
 const { proxyHandler, publicBase, proxiedUrl } = require('./lib/proxy')
 const { tzLabelToValue, formatTimeInTz, wallTimeToUtc, isLiveNow } = require('./lib/common')
@@ -91,10 +90,12 @@ builder.defineStreamHandler(async (args) => {
       const results = await Promise.all(
         event.streams.map(async (s) => {
           try {
-            const m3u8 = await getStreamUrl(s.url, 'https://alangulotv.si/')
-            // En deploy serverless el token queda ligado a la IP del fetch (datacenter);
-            // se sirve via proxy para que el reproductor use la misma IP del token.
-            const finalUrl = proxyBase ? proxiedUrl(proxyBase, m3u8) : m3u8
+            // Se pasa la URL del canal (ej. canal.php) al proxy: el proxy
+            // extrae el m3u8 con SU IP, asi el token del playback queda ligado
+            // a la misma IP que descarga los segmentos (en serverless la IP
+            // egress varia entre invocaciones y si el token se genera en una
+            // invocacion distinta, fubo18 responde 403).
+            const finalUrl = proxyBase ? proxiedUrl(proxyBase, s.url) : s.url
             return {
               name: s.label || s.source,
               title: s.label || s.source,
