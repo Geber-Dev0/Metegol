@@ -8,7 +8,7 @@ module.exports = {
   id: 'com.metegol.live.v5',
   version: '1.7.1',
   name: 'MeteGol',
-  description: 'Deportes en vivo: fútbol (Liga Profesional, LaLiga, Libertadores), UFC y más. Fuentes: alangulotv.si, futbollibretv.sx, agenda18.com.',
+  description: 'Fútbol en vivo: las principales ligas de toda América y Europa',
   logo: `${BASE}/assets/logo.png`,
   background: `${BASE}/assets/fondo.jpg`,
   resources: ['catalog', 'meta', 'stream'],
