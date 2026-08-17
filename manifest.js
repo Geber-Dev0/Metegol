@@ -2,11 +2,15 @@
 
 const { TZ_OPTIONS } = require('./lib/common')
 
+const BASE = process.env.PUBLIC_BASE_URL || 'http://127.0.0.1:7000'
+
 module.exports = {
   id: 'com.metegol.live.v5',
   version: '1.7.1',
   name: 'MeteGol',
   description: 'Deportes en vivo: fútbol (Liga Profesional, LaLiga, Libertadores), UFC y más. Fuentes: alangulotv.si, futbollibretv.sx, agenda18.com.',
+  logo: `${BASE}/assets/logo.png`,
+  background: `${BASE}/assets/fondo.jpg`,
   resources: ['catalog', 'meta', 'stream'],
   types: ['tv'],
   catalogs: [

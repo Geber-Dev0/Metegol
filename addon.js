@@ -1,6 +1,7 @@
 'use strict'
 
 const express = require('express')
+const path = require('path')
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk')
 const getRouter = require('stremio-addon-sdk/src/getRouter')
 const configurePage = require('./lib/landing')
@@ -135,6 +136,8 @@ function createApp() {
   // /proxy y /proxy/seg.ts (el segmento real viaja en ?url=)
   app.get('/proxy', proxyHandler)
   app.get('/proxy/:name', proxyHandler)
+  // Archivos estaticos: logo, fondo y favicon de la landing
+  app.use('/assets', express.static(path.join(__dirname, 'assets')))
   // /poster/<id>.png: portada generada en PNG (sharp) porque Stremio en
   // Android no renderiza SVG data URI como posters
   app.get('/poster/:id', async (req, res) => {
