@@ -97,7 +97,10 @@ builder.defineStreamHandler(async (args) => {
             // a la misma IP que descarga los segmentos (en serverless la IP
             // egress varia entre invocaciones y si el token se genera en una
             // invocacion distinta, fubo18 responde 403).
-            const finalUrl = proxyBase ? proxiedUrl(proxyBase, s.url) : s.url
+            // La extension se fuerza a .m3u8: la URL termina en .php y los
+            // players internos (ExoPlayer/Media3 de Stremio Android) no la
+            // reconocen como HLS, fallan y Stremio "switchea" a VLC.
+            const finalUrl = proxyBase ? proxiedUrl(proxyBase, s.url, 'm3u8') : s.url
             return {
               name: s.label || s.source,
               title: s.label || s.source,
