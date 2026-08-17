@@ -13,12 +13,21 @@ y [agenda18.com](https://agenda18.com) (backend de futbollibre.mx / rojadirectaa
 - Lee la **agenda del día** de tres fuentes y las **fusiona en un solo catálogo**,
   deduplicando por título y combinando los enlaces del mismo partido.
 - Lista los partidos/eventos en el catálogo de Stremio (`MeteGol Live`) con
-  **portadas que incluyen los escudos de los equipos** (vía TheSportsDB, con fallback a emoji).
+  **portadas PNG generadas** (texto vectorial sin depender de fuentes del sistema):
+  escudos de los equipos (vía TheSportsDB) cuando existen y **nombres de los equipos
+  siempre abajo**. Texto normalizado (sin tildes). Si el evento está en vivo, muestra
+  un badge "EN VIVO".
 - Al abrir un evento, extrae en **tiempo real** los enlaces HLS (`.m3u8`) de los
-  servidores de terceros y los sirve a Stremio como streams reproducibles, ordenados por
+  servidores de terceros y los sirve a Stremio como streams reproducibles (URL forzada
+  a `.m3u8` para que ExoPlayer/Media3 los reconozca como HLS), ordenados por
   **proveedor más estable primero** (la18hd.su > fubo18.com > streamtp-golden1.click, etc.).
 - En despliegue serverless (Vercel) los streams pasan por un **proxy HLS** (`lib/proxy.js`)
-  para que los tokens (ligados a la IP del fetch) coincidan con la IP del reproductor.
+  que descarga m3u8 y segmentos desde la misma IP del token y los reescribe, con
+  **doble vía**: URL tokenizada directa y, si falla, **re-extracción de la playlist
+  fresca** dentro de la misma invocación (segmentos por índice, inmune a la rotación
+  de nodos CDN y a la expiración de ~2 s de fubo18).
+- **Configurable** (zona horaria para los horarios): al instalar, Stremio abre
+  `/configure` para elegir el timezone (Argentina, Perú, Chile, México, etc.).
 
 ## Requisitos
 
@@ -59,17 +68,19 @@ Después de desplegar, instala en Stremio la URL:
 MeteGol/
 ├── package.json            # dependencias y scripts
 ├── addon.js                # addonBuilder + handlers (catalog/meta/stream) + router Express
-├── manifest.js             # definición del addon (id, nombre, recursos, tipos)
+├── manifest.js             # definición del addon (id v5, config de zona horaria, recursos)
 ├── api/index.js            # entry point serverless para Vercel (monta el router Express)
 ├── vercel.json             # configuración de despliegue en Vercel
 ├── lib/
-│   ├── common.js           # helpers compartidos (fetch, decode, normalize, classify)
+│   ├── common.js           # helpers compartidos (fetch, decode, normalize, classify, TZ)
 │   ├── scraper.js          # fusión de las 3 fuentes + prioridad de proveedores
 │   ├── scraper-futbollibre.js  # parsea futbollibretv.sx/eventos.js
 │   ├── scraper-agenda18.js     # consume agenda18.com/agenda.json (.mx / rojadirectaa)
 │   ├── extractor.js        # obtiene el m3u8 desde los endpoints de 3º
-│   ├── proxy.js            # proxy HLS (resuelve bloqueo por IP en serverless)
-│   └── teamlogos.js        # portadas con escudos de equipos (TheSportsDB) + fallback
+│   ├── proxy.js            # proxy HLS doble vía (directo + re-extracción) en serverless
+│   ├── landing.js          # página /configure (INSTALL / INSTALL EN WEB / COPIAR URL)
+│   └── teamlogos.js        # portadas PNG (opentype->SVG->sharp) con escudos + nombres
+├── assets/DejaVuSans-Bold.ttf  # fuente embebida para las portadas
 ├── test.js                 # prueba rápida de scraper + extractor
 └── docs/                   # documentación detallada
     ├── ARQUITECTURA.md

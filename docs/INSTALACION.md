@@ -18,6 +18,8 @@ El servidor queda en `http://127.0.0.1:7000` (puerto configurable con `PORT`).
 2. Ir a la sección **Addons** → "Addon no oficial / Load addon".
 3. Pegar: `http://localhost:7000/manifest.json`
 4. Confirmar la instalación de **MeteGol**.
+5. Stremio abre `/configure` para elegir la **zona horaria** (Argentina, Perú, Chile,
+   México, etc.); los horarios del catálogo se muestran en esa zona.
 
 Para Android/TV no sirve `localhost` (es otro dispositivo); ahí necesitás HTTPS
 público (ver sección 3).
@@ -49,10 +51,11 @@ npm run vercel:deploy     # despliega a producción
 Instalás en Stremio la URL que te da Vercel:
 `https://<tu-proyecto>.vercel.app/manifest.json`
 
-> Nota: en Vercel las funciones salen con IP de datacenter. Si un proveedor de
-> streaming validara la IP del cliente en su token, algunos enlaces podrían fallar;
-> con los proveedores actuales el token embebe la IP de quien hace el fetch, así que
-> suele funcionar.
+> Nota: en Vercel las funciones salen con IP de datacenter y los tokens de los
+> proveedores van ligados a esa IP, por eso el addon sirve los streams a través de
+> `/proxy` (`lib/proxy.js`), que descarga m3u8 y segmentos desde la misma IP del token
+> y los reescribe para el reproductor (con re-extracción automática si el segmento
+> expiró o el nodo CDN rotó). Ver [`ARQUITECTURA.md`](ARQUITECTURA.md).
 
 ### b) Netlify (alternativa)
 

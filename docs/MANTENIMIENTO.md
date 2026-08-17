@@ -47,11 +47,29 @@ deje de funcionar, seguí esta guía para diagnosticar y arreglar.
 - Esperado si el m3u8 se reutilizó tras unos minutos. El addon ya genera el token en
   el momento del `stream`, así que no debería pasar salvo que el servidor de 3º tenga
   un reloj desincronizado. No cachear los `url` de stream.
+- En fuentes tipo `canal.php` (la18hd/streamtp), los segmentos de fubo18 expiran en
+  **~2 s** y la página **rota nodos CDN** (`bmf0aw9u` / `b2ZmaWNpYWw`) con ventanas de
+  segmentos distintas. Por eso el proxy reescribe por **índice** (`idx`) y, si la URL
+  directa falla, **re-extrae la playlist fresca dentro de la misma invocación** (misma
+  IP = token válido). Si un segmento sigue dando 404, es que el índice quedó viejo; el
+  proxy ya camina hacia atrás desde el segmento más nuevo.
+
+### C2. Los posters salen "de cabeza" o viejos (texto girado 180°)
+- El texto del poster se genera al derecho desde el servidor (verifique
+  `/poster/:id.png` en el navegador). Si en Stremio sigue saliendo girado o antiguo,
+  es **caché**: tanto Stremio como la CDN (`s-maxage=1800`, ~30 min) cachean las
+  imágenes. Desinstalá los addons viejos (cada `id` tiene su propia caché), instalá el
+  actual y esperá ~30 min o reiniciá Stremio.
+- Si hay que forzar limpieza global: cambiar el `id` del addon en `manifest.js`
+  (ej. `com.metegol.live.v5` → `v6`) invalida toda la caché de Stremio (addon nuevo),
+  aunque la CDN tarda hasta ~30 min en refrescarse.
 
 ### D. Las portadas no muestran escudos
 - TheSportsDB tiene rate-limit (~30 req/min). El addon cachea resultados en memoria
-  (TTL 6 h), pero en el primer arranque puede tardar o devolver emoji si la API se
-  satura. Las portadas siempre caen a un emoji si no hay escudo.
+  (TTL 6 h), pero en el primer arranque puede tardar. Sin escudo, el poster igual
+  muestra el **deporte arriba y los nombres de los equipos abajo** (texto normalizado,
+  sin tildes). El texto grande centrado del deporte solo aparece si no se pudo extraer
+  ningún nombre de equipo del título.
 
 ## Checklist periódico
 

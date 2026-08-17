@@ -16,7 +16,10 @@ flowchart TD
     E2 -->|EVENTOS_DATA| D
     E3 -->|JSON Strapi| D
     D -->|merge + dedupe + prioridad| B
-    B -->|metas con portadas| A
+    B -->|metas con portada PNG| A
+    A -->|GET poster/:id.png| P2[lib/teamlogos.js]
+    P2 -->|escudos| S[(thesportsdb.com)]
+    P2 -->|opentype + sharp| A
 
     M --> D2[scraper.getEventByTitle]
     D2 --> D
@@ -30,9 +33,10 @@ flowchart TD
     G -->|GET endpoint 3º| H[(la18hd.su / streamtp-golden1.click / streamx488.sbs)]
     H -->|HTML con playbackURL| G
     G -->|m3u8| C
-    C -->|streams (url del proxy)| A
+    C -->|streams (proxy seg.m3u8)| A
     A -->|reproduce m3u8 via /proxy| P[lib/proxy.js]
-    P -->|GET m3u8 + segmentos (misma IP del token)| I[(fubo18.com / tudeporteshoy.xyz)]
+    P -->|vía 1: URL tokenizada directa| I[(fubo18.com / tudeporteshoy.xyz)]
+    P -->|vía 2: re-extrae la página y toma el segmento por idx| I
     I -->|m3u8 + .ts| P
     P -->|m3u8 reescrito + segmentos| A
 ```
@@ -77,8 +81,24 @@ flowchart TD
      por `vs`/`-`/`@`).
    - `searchTeam()` consulta **TheSportsDB** (`/api/v1/json/3/searchteams.php?t=`), con
      caché en memoria (TTL 6 h) para respetar el rate-limit.
-   - `eventPoster()` compone un **SVG** con los escudos de ambos equipos; si no hay
-     escudos, cae a un póster SVG con el emoji del deporte.
+   - `eventPoster()` compone un **PNG** (`sharp`) de 500×280. Vercel no tiene fuentes
+     (fontconfig roto), así que el texto se convierte a **trazas SVG** con `opentype.js`
+     sobre la fuente embebida `assets/DejaVuSans-Bold.ttf` (`textToPath()`). Cada glifo
+     se genera con `charToGlyph` + `getPath` por separado (DejaVu dispara lookups de
+     ligaduras no soportadas si se procesa el texto entero).
+   - **Clave:** `getPath` de opentype entrega los contornos espejados en vertical, así
+     que `textToPath()` invierte el eje Y (`scale(1,-1)`) alrededor del **centro
+     vertical del texto** (calculado del rango de `y` de los paths) para dejarlo al
+     derecho sin moverlo de su posición.
+   - El texto se **normaliza sin tildes/diacríticos** (`removeDiacritics`: á→a, ñ→n,
+     ü→u) para no depender de glifos especiales.
+   - Layout del poster: deporte arriba (dorado), **escudos en el medio** (si
+     TheSportsDB los tiene) + "VS", y **nombres de los equipos siempre abajo**. Si el
+     evento está en vivo, badge rojo "EN VIVO" arriba a la derecha. El texto grande
+     centrado del deporte solo se usa como **último recurso** (cuando no hay escudos ni
+     nombres).
+   - Se sirve por `/poster/:id.png` (no SVG data-URI: Stremio Android no los renderiza).
+     Caché en memoria 30 min (`POSTER_TTL_MS`) + `Cache-Control` en CDN.
 
 5. **Extractor — `lib/extractor.js`**
    - Consulta el endpoint del tercero con headers de navegador (y `Referer`).
@@ -97,18 +117,36 @@ flowchart TD
      - Si es una playlist (`#EXTM3U`), reescribe cada segmento/variante/`URI=` para que
        también pase por `/proxy` (`rewritePlaylist()`).
      - Si es un segmento `.ts`, lo sirve tal cual (`video/mp2t`).
-   - En `defineStreamHandler` el m3u8 se devuelve envuelto en la URL del proxy cuando
-     hay `PUBLIC_BASE_URL` (deploy); en local se devuelve directo.
+   - **Fuentes tipo `canal.php`** (la18hd/streamtp): el m3u8 embebido en la página
+     expira en **~2 s** (fubo18) y la página **alterna nodos CDN** (`bmf0aw9u` vs
+     `b2ZmaWNpYWw`) con ventanas de segmentos distintas, así que el matching por nombre
+     de segmento es frágil. Por eso `rewritePlaylist()` reescribe los segmentos **por
+     índice** (`idx`) contra la URL de la página:
+     `/proxy/seg.<ext>?url=<tokenizada>&page=<canal>&idx=<N>[&v=<M>]`.
+   - `handlePageSegment` intenta **dos vías**: ① la URL tokenizada directa (funciona si
+     la instancia coincide con la IP del token, inmune a la rotación) y ② si falla
+     (403/404), **re-extrae la página fresca dentro de la misma invocación** (misma IP =
+     token válido) → m3u8 → segmento por `idx` (con fallback caminando desde el más
+     nuevo). Las playlists media **nunca se cachean**; solo hay caché de página 10 s por
+     instancia.
+   - En `defineStreamHandler` el m3u8 se devuelve envuelto en la URL del proxy **con
+     extensión forzada `.m3u8`** (`proxiedUrl(proxyBase, s.url, 'm3u8')`): la URL real
+     termina en `.php` y los players internos de Stremio Android (ExoPlayer/Media3) no
+     la reconocen como HLS, fallan y "switchean" a VLC. En local se devuelve directo.
 
 7. **Addon — `addon.js`**
    - `addonBuilder(manifest)` declara recursos `catalog` + `meta` + `stream`, tipo `tv`.
-   - `defineCatalogHandler` → `metas` (uno por evento) con **portada de equipos**.
+   - `manifest.js`: id `com.metegol.live.v5`, **config de zona horaria** (`behaviorHints.configurable`),
+     elegida una vez por usuario y guardada en la URL por Stremio.
+   - `defineCatalogHandler` → `metas` (uno por evento) con **portada PNG** (`/poster/:id.png`).
    - `defineMetaHandler` → devuelve la meta del evento (necesario para que Stremio
      trate el ítem como canal de TV jugable).
    - `defineStreamHandler` → por cada enlace del evento, extrae el m3u8 en paralelo y
-     lo devuelve como stream (a través del proxy si corresponde).
-   - `createApp()` monta Express + la ruta `/proxy` + el **router** (`getRouter`) para
-     serverless. Si se ejecuta `node addon.js`, usa `serveHTTP` para el servidor local.
+     lo devuelve como stream (a través del proxy, forzando extensión `.m3u8`).
+   - `createApp()` monta Express + las rutas `/proxy` + `/poster/:id` + `/configure`
+     (página de instalación con botones INSTALL / INSTALL EN WEB / COPIAR URL) + el
+     **router** (`getRouter`) para serverless. Si se ejecuta `node addon.js`, usa
+     `serveHTTP` para el servidor local.
 
 ## Modelo de datos de un evento
 
