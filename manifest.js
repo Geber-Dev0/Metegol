@@ -6,7 +6,7 @@ const BASE = process.env.PUBLIC_BASE_URL || 'http://127.0.0.1:7000'
 
 module.exports = {
   id: 'com.metegol.live.v5',
-  version: '1.7.3',
+  version: '1.7.4',
   name: 'MeteGol',
   description:
     "Fútbol en vivo: las principales ligas de toda América y Europa. Si un canal no reproduce, probá con otro reproductor: el más estable es MPV. | Live football: the main leagues of all the Americas and Europe. If a channel doesn't play, try a different player: MPV is the most stable.",
@@ -25,6 +25,11 @@ module.exports = {
   behaviorHints: {
     // la config se elige una vez por usuario y Stremio la guarda en la URL
     configurable: true
+  },
+  stremioAddonsConfig: {
+    issuer: 'https://stremio-addons.net',
+    signature:
+      'eyJhbGciOiJkaXIiLCJlbmMiOiJBMTI4Q0JDLUhTMjU2In0..YEzu4nOiS_cdMgKmpW1apA.Bye4-eATjhZKckG6NQbtrZsSs5TjYk5aEuoQb4Ie61fwlA1O6ABaMcolVe-ql_xzLGiuZydTGoZ42DYT1bH33mPMWW31WvgHpoRk71aM9ftXgWDE-XYFHtGYeQFnMMsd.wgzvqnyEJP5T3ncFUKWI7g'
   },
   config: [
     {
