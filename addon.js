@@ -158,6 +158,31 @@ function createApp() {
   })
   app.use(getRouter(builder.getInterface()))
 
+  // Horarios de la API-Football (cacheable): el CDN (s-maxage) absorbe a los
+  // usuarios y el origen consulta la API ~1 vez por hora como mucho. Util para
+  // debug y para no superar el limite gratis (100 requests/dia).
+  app.get('/schedule', async (req, res) => {
+    try {
+      const footballApi = require('./lib/footballApi')
+      const date = (req.query.date || '').match(/^\d{4}-\d{2}-\d{2}$/) ? req.query.date : footballApi.todayStr()
+      const fixtures = await footballApi.fetchDailyFixtures(date)
+      const list = Array.isArray(fixtures)
+        ? fixtures.map((f) => ({
+            date: f.fixture && f.fixture.date,
+            league: f.league && f.league.name,
+            country: f.league && f.league.country,
+            home: f.teams && f.teams.home && f.teams.home.name,
+            away: f.teams && f.teams.away && f.teams.away.name
+          }))
+        : []
+      res.set('Cache-Control', 'public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400')
+      res.json({ date, count: list.length, fixtures: list })
+    } catch (err) {
+      console.error('[schedule] error:', err.message)
+      res.status(500).json({ error: err.message })
+    }
+  })
+
   // Landing page + /configure: necesarios para que Stremio muestre el boton
   // "Configure" al instalar (redirige aqui cuando el manifest tiene config).
   // Es lo mismo que hace serveHTTP del SDK, pero nuestro createApp es custom.

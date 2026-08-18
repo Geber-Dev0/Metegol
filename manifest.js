@@ -6,7 +6,7 @@ const BASE = process.env.PUBLIC_BASE_URL || 'http://127.0.0.1:7000'
 
 module.exports = {
   id: 'com.metegol.live.v5',
-  version: '1.7.1',
+  version: '1.7.2',
   name: 'MeteGol',
   description: 'Fútbol en vivo: las principales ligas de toda América y Europa',
   logo: `${BASE}/assets/logo.png`,
