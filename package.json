@@ -1,7 +1,7 @@
 {
   "name": "metegol",
-  "version": "1.8.1",
-  "description": "Addon de Stremio para deportes en vivo (futbol, UFC, tenis, F1). Fuentes: alangulotv.si, futbollibretv.sx, agenda18.com",
+  "version": "1.8.2",
+  "description": "Addon de Stremio para deportes en vivo (futbol, UFC, tenis, F1). Fuentes: alangulotv.si, futbollibretv.sx, agenda18.com, deporflix.pe",
   "main": "addon.js",
   "scripts": {
     "start": "node addon.js",
