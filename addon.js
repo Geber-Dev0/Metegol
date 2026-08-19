@@ -89,7 +89,7 @@ builder.defineStreamHandler(async (args) => {
       if (!event || !event.streams.length) return { streams: [] }
 
       // Fetches en paralelo para no superar el timeout de Stremio
-      const proxyBase = process.env.PUBLIC_BASE_URL || ''
+      const proxyBase = process.env.PROXY_BASE_URL || process.env.PUBLIC_BASE_URL || ''
       const results = await Promise.all(
         event.streams.map(async (s) => {
           try {

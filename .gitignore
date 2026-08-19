@@ -4,3 +4,10 @@ node_modules/
 .env
 
 .vercel
+
+# Local Netlify folder
+.netlify
+
+# Cloudflare Worker local
+workers/proxy/.wrangler/
+workers/proxy/node_modules/

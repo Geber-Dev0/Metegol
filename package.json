@@ -1,6 +1,6 @@
 {
   "name": "metegol",
-  "version": "1.4.0",
+  "version": "1.8.0",
   "description": "Addon de Stremio para deportes en vivo (futbol, UFC, tenis, F1). Fuentes: alangulotv.si, futbollibretv.sx, agenda18.com",
   "main": "addon.js",
   "scripts": {
@@ -19,9 +19,14 @@
   ],
   "license": "MIT",
   "dependencies": {
+    "@img/sharp-libvips-linux-x64": "^1.3.2",
+    "@img/sharp-linux-x64": "^0.35.3",
     "express": "^4.21.2",
     "opentype.js": "^2.0.0",
-    "sharp": "^0.35.3",
+    "serverless-http": "^3.2.0",
     "stremio-addon-sdk": "^1.6.10"
+  },
+  "optionalDependencies": {
+    "sharp": "^0.35.3"
   }
 }
