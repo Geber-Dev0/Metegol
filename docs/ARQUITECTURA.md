@@ -12,9 +12,11 @@ flowchart TD
     D -->|GET agenda.php| E1[(alangulotv.si/agenda.php)]
     D -->|GET eventos.js| E2[(futbollibretv.sx/eventos.js)]
     D -->|GET agenda.json| E3[(agenda18.com/agenda.json)]
+    D -->|GET WP REST + admin-ajax| E4[(deporflix.pe partidos vs)]
     E1 -->|HTML| D
     E2 -->|EVENTOS_DATA| D
     E3 -->|JSON Strapi| D
+    E4 -->|embed la18hd/fubo18| D
     D -->|merge + dedupe + prioridad| B
     B -->|metas con portada PNG| A
     A -->|GET poster/:id.png| P2[lib/teamlogos.js]
@@ -50,13 +52,21 @@ flowchart TD
    - `futbollibretv.sx/eventos.js` — archivo JS con `const EVENTOS_DATA = [...]` en el
      mismo formato (`clase`, `titulo`, `hora`, `canales`). Los enlaces también son
      `/eventos.html?r=<BASE64>`.
-   - `agenda18.com/agenda.json` — JSON estilo Strapi compartido por futbollibre.mx y
+- `agenda18.com/agenda.json` — JSON estilo Strapi compartido por futbollibre.mx y
      rojadirectaa.net. Eventos con `diary_hour`, `diary_description`, `deportes`,
      `embeds` (iframe con `r=<BASE64>`) y `country` (con bandera). Se descartan los
      embeds de `tarjetarojita.xyz`/`proveseat` (DRM cifrado) y `la10tv.com` (DRM).
+   - `deporflix.pe` — WordPress con tema **Dooplay**; los partidos puntuales ("X vs Y")
+     se listan vía `wp-json/wp/v2/search?search=vs&per_page=20&_embed=1` (cada uno es
+     una página bajo `/canales/` con `data-post` = id del post). El embed se obtiene
+     con un POST a `/wp-admin/admin-ajax.php` (`action=doo_player_ajax&post=<id>&nume=1&type=movie`)
+     con header `X-Requested-With: XMLHttpRequest`, que devuelve
+     `{"embed_url":"https://la18hd.su/vivo/canales.php?stream=..."}` — el mismo formato
+     `canal.php` que ya maneja el proxy. Se filtran los resultados sin formato de
+     partido (p. ej. `/destacado/`).
 
 2. **Scraper — `lib/scraper.js`**
-   - Descarga las tres fuentes en paralelo (`Promise.allSettled`, si una falla no
+   - Descarga las **cuatro** fuentes en paralelo (`Promise.allSettled`, si una falla no
      tumba al resto) y las fusiona con `mergeEvents()`.
    - `mergeEvents()` deduplica por **título normalizado** (sin acentos, mayúsculas ni
      guiones) y combina los enlaces del mismo partido (`mergeStreams`).
@@ -75,14 +85,19 @@ flowchart TD
    - `lib/scraper-agenda18.js` — parsea el JSON de Strapi, convierte la hora de
      `America/Lima` (UTC-5) a hora local y agrega la bandera de país
      (`img.agenda18.com/uploads/...`).
+   - `lib/scraper-deporflix.js` — consulta la búsqueda de WordPress, filtra los items
+     con formato de partido, hace el POST AJAX por cada uno (en paralelo) para obtener
+     el `embed_url`, y los agrega al merge con `source: 'DF'`. `classifyTitle()` mapea
+     nombres de competiciones conocidas (conferencias CONMEBOL, Liga MX, Serie A, etc.)
+     a un deporte/emoji; el resto se etiqueta como genérico.
 
 4. **Portadas — `lib/teamlogos.js`**
    - `parseTeams()` extrae hasta dos equipos del título (tras el primer `:` y separados
      por `vs`/`-`/`@`).
    - `searchTeam()` consulta **TheSportsDB** (`/api/v1/json/3/searchteams.php?t=`), con
      caché en memoria (TTL 6 h) para respetar el rate-limit.
-   - `eventPoster()` compone un **PNG** (`sharp`) de 500×280. Vercel no tiene fuentes
-     (fontconfig roto), así que el texto se convierte a **trazas SVG** con `opentype.js`
+- `eventPoster()` compone un **PNG** (`sharp`) de 500×280. En serverless no hay
+     fuentes (fontconfig roto), así que el texto se convierte a **trazas SVG** con `opentype.js`
      sobre la fuente embebida `assets/DejaVuSans-Bold.ttf` (`textToPath()`). Cada glifo
      se genera con `charToGlyph` + `getPath` por separado (DejaVu dispara lookups de
      ligaduras no soportadas si se procesa el texto entero).
@@ -176,15 +191,28 @@ validez). Por eso:
 - El `id` del evento usa solo el título (sin token), para que el catálogo y el stream
   coincidan aunque pase el tiempo.
 
-## Despliegue serverless (Vercel)
+## Despliegue serverless (Netlify)
 
-- `api/index.js` importa `createApp()` y la exporta como handler de Vercel.
-- `vercel.json` enruta todo el tráfico (`/(.*)`) a `api/index.js` y define
-  `PUBLIC_BASE_URL` (la URL pública del addon).
-- **Clave:** en Vercel los tokens quedan ligados a la IP del datacenter, por eso el
-  `defineStreamHandler` devuelve el m3u8 **envuelto en `/proxy`** (`lib/proxy.js`), que
-  descarga m3u8 y segmentos desde la misma IP del token y los reescribe para el
-  reproductor. Sin el proxy, el TV recibiría 403 (IP distinta a la del token).
-- Consideraciones de Vercel: cada segmento `.ts` es una request de la función
-  serverless; el plan Hobby permite respuestas de streaming y tiene un límite de
-  ancho de banda (100 GB/mes) y de requests. Para uso personal alcanza.
+- `netlify.toml`: `publish = "public"`, funciones en `netlify/functions`, bundler
+  `esbuild` con `sharp` como `external` (por los binarios nativos), redirect `/*` →
+  `/.netlify/functions/addon`.
+- `netlify/functions/addon.js` envuelve `createApp()` con **`serverless-http`**
+  (los media se marcan como `binary` para que Netlify los sirva crudos: `image/png`,
+  `video/mp2t`, `application/octet-stream`).
+- Env vars del sitio: `PUBLIC_BASE_URL` (URL pública del addon), `FOOTBALL_API_KEY`
+  (portadas). `PROXY_BASE_URL` opcional: si no está, el proxy usa `PUBLIC_BASE_URL`.
+- **Clave:** en Netlify (igual que en Vercel) los tokens quedan ligados a la IP del
+  datacenter, por eso el `defineStreamHandler` devuelve el m3u8 **envuelto en `/proxy`**
+  (`lib/proxy.js`), que descarga m3u8 y segmentos desde la misma IP del token y los
+  reescribe para el reproductor. Sin el proxy, el TV recibiría 403 (IP distinta a la
+  del token).
+- Consideraciones de Netlify: cada segmento `.ts` es una invocación de la función; el
+  plan free (deploy de funciones) alcanza holgado para uso personal.
+- **Por qué no Cloudflare Workers como proxy:** fubo18 **bloquea los rangos IP
+  compartidos de Workers** (403 al pedir el m3u8; el mismo flujo da 200 desde
+  Netlify/Vercel o una IP residencial). El port `workers/proxy/` queda desplegado como
+  respaldo para hosts que no bloqueen a Cloudflare; se activaría seteando
+  `PROXY_BASE_URL` a su URL.
+- **Por qué se dejó Vercel:** el plan free de Vercel agota el **Fast Origin Transfer**
+  (~10 GB/mes) por el streaming del proxy, así que el addon pasa a Netlify.
+  `api/index.js`/`vercel.json` quedan por compatibilidad.

@@ -33,42 +33,63 @@ servidor HTTP:
 npm test
 ```
 
-Muestra los eventos del día (fusionados de las 3 fuentes) y el primer `.m3u8` obtenido.
+Muestra los eventos del día (fusionados de las 4 fuentes) y el primer `.m3u8` obtenido.
 
 ## 3. Despliegue público (HTTPS obligatorio)
 
 Stremio exige HTTPS para cualquier addon que no sea `127.0.0.1`. Opciones:
 
-### a) Vercel (URL fija recomendada)
+### a) Netlify (URL fija recomendada)
 
-El proyecto ya incluye `vercel.json` y `api/index.js` para deploy serverless:
+El proyecto incluye `netlify.toml` y `netlify/functions/addon.js` (envuelve el router
+Express con `serverless-http`; los assets estáticos viven en `public/`):
 
 ```bash
-npx vercel login          # una sola vez
-npm run vercel:deploy     # despliega a producción
+npx netlify login               # una sola vez (login en navegador)
+npx netlify-cli sites:create --name <nombre> --json   # si no existe el sitio
+npx netlify-cli deploy --prod --dir public --functions netlify/functions --site <site-id>
 ```
 
-Instalás en Stremio la URL que te da Vercel:
-`https://<tu-proyecto>.vercel.app/manifest.json`
+Variables de entorno del sitio (con `netlify-cli env:set`):
+- `PUBLIC_BASE_URL` = `https://<tu-proyecto>.netlify.app`
+- `FOOTBALL_API_KEY` = key de API-Football
+- `PROXY_BASE_URL` = opcional; si no está, el proxy de streaming usa `PUBLIC_BASE_URL`.
 
-> Nota: en Vercel las funciones salen con IP de datacenter y los tokens de los
+Instalás en Stremio la URL: `https://<tu-proyecto>.netlify.app/manifest.json`
+
+> Nota: en Netlify las funciones salen con IP de datacenter y los tokens de los
 > proveedores van ligados a esa IP, por eso el addon sirve los streams a través de
 > `/proxy` (`lib/proxy.js`), que descarga m3u8 y segmentos desde la misma IP del token
 > y los reescribe para el reproductor (con re-extracción automática si el segmento
 > expiró o el nodo CDN rotó). Ver [`ARQUITECTURA.md`](ARQUITECTURA.md).
 
-### b) Netlify (alternativa)
+### b) Cloudflare Worker (proxy de respaldo)
 
-Como la app es un router Express, podés crear un handler de Netlify Functions
-(`netlify/functions/server.js`) que exporte la misma `createApp()`. No está
-configurado en el repo.
+`workers/proxy/` es un port del proxy HLS para Cloudflare Workers (sin Express):
 
-### c) Hostings Node.js
+```bash
+cd workers/proxy
+npx wrangler login
+npx wrangler deploy
+```
+
+> ⚠️ Fubo18 **bloquea los rangos IP compartidos de Cloudflare Workers** (respuesta 403
+> al pedir el m3u8; el mismo flujo funciona desde Vercel/Netlify o una IP residencial).
+> Por eso el proxy principal vive en Netlify y el Worker queda como respaldo/alternativa
+> para hosts que no bloqueen a Cloudflare. Si algún día se desbloquea, se activa seteando
+> `PROXY_BASE_URL` a la URL del Worker.
+
+### c) Vercel (legacy)
+
+`vercel.json` y `api/index.js` quedan por compatibilidad. Ya no se usa como hosting:
+el plan free agotó el **Fast Origin Transfer** (~10 GB/mes) por el streaming del proxy.
+
+### d) Hostings Node.js
 
 Railway / Fly.io / Render / etc. Desplegás el repo; el addon escucha en la variable
 de entorno `PORT`. La URL del addon será `https://<tu-dominio>/manifest.json`.
 
-### d) Tunnel local (solo para probar desde otro dispositivo)
+### e) Tunnel local (solo para probar desde otro dispositivo)
 
 ```bash
 npx localtunnel --port 7000

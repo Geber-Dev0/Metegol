@@ -7,7 +7,7 @@ deje de funcionar, seguí esta guía para diagnosticar y arreglar.
 
 | Capa | Ejemplo | Riesgo |
 |------|---------|--------|
-| Origen de la agenda | `alangulotv.si/agenda.php`, `futbollibretv.sx/eventos.js`, `agenda18.com/agenda.json` | Cambian estructura o caen |
+| Origen de la agenda | `alangulotv.si/agenda.php`, `futbollibretv.sx/eventos.js`, `agenda18.com/agenda.json`, `deporflix.pe` (WP REST + admin-ajax) | Cambian estructura o caen |
 | Endpoint de reproducción | `la18hd.su`, `streamtp-golden1.click`, `streamx488.sbs` | Caen, cambian de dominio, anti-hotlink |
 | Host del m3u8 | `fubo18.com`, `tudeporteshoy.xyz` | Tokens efímeros, bloqueos por IP |
 | Portadas | `thesportsdb.com` | Rate-limit, cambio de API |
@@ -34,11 +34,14 @@ deje de funcionar, seguí esta guía para diagnosticar y arreglar.
   redirigen si no viene el `Referer` adecuado. En `lib/extractor.js` se envía
   `Referer` alagulotv; para `la18hd.su` conviene `https://agenda18.com/`. Si un host
   nuevo lo exige, ajustá el referer por dominio.
-- Posible 3: el dominio del m3u8 bloquea la IP del servidor (datacenter). En Vercel la
+- Posible 3: el dominio del m3u8 bloquea la IP del servidor (datacenter). En Netlify la
   IP es de un datacenter. El addon ya sirve los streams a través de `/proxy`
   (`lib/proxy.js`), que descarga m3u8 y segmentos desde la misma IP del token, así que
   el reproductor siempre coincide. Si un proveedor nuevo bloqueara la IP del datacenter
   por completo (no solo el token), no hay fix salvo cambiar de hosting.
+- Posible 3b: el proveedor bloquea **a Cloudflare Workers por completo** (fubo18 lo hace:
+  403 al pedir el m3u8). Por eso el proxy principal vive en Netlify y
+  `workers/proxy/` queda como respaldo para hosts que no bloqueen a Cloudflare.
 - Posible 4: **DRM**. Los embeds de `tarjetarojita.xyz`/`proveseat.net` y `la10tv.com`
   usan cifrado/DRM y ya se descartan en `lib/scraper-agenda18.js`. Si aparece un
   proveedor nuevo con `_econfig`, `license` o `.mpd`, descartalo igual.
@@ -75,12 +78,13 @@ deje de funcionar, seguí esta guía para diagnosticar y arreglar.
 
 - [ ] `npm test` devuelve eventos y al menos un m3u8 válido.
 - [ ] El primer evento reproduce en Stremio.
-- [ ] Las tres fuentes de agenda devuelven datos (verificar en catálogo).
+- [ ] Las cuatro fuentes de agenda devuelven datos (verificar en catálogo).
 - [ ] Los endpoints de 3º conocidos siguen activos (ver abajo).
 
 ## Dominios conocidos (a agosto 2026)
 
-- Origen de agenda: `alangulotv.si`, `futbollibretv.sx`, `agenda18.com`, `img.agenda18.com`
+- Origen de agenda: `alangulotv.si`, `futbollibretv.sx`, `agenda18.com`, `img.agenda18.com`,
+  `deporflix.pe` (WP REST `/wp-json/wp/v2/search` + `admin-ajax.php` con `doo_player_ajax`)
 - Endpoints de reproducción: `la18hd.su/vivo/canales.php`, `streamtp-golden1.click/global1.php`,
   `streamx488.sbs/global1.php`
 - Hosts m3u8: `*.fubo18.com`, `*.tudeporteshoy.xyz`
@@ -113,4 +117,10 @@ npm install     # si cambian dependencias
 npm start
 ```
 
-Para Vercel, cada `npm run vercel:deploy` publica la última versión.
+Para Netlify, cada deploy publica la última versión:
+
+```bash
+npx netlify-cli deploy --prod --dir public --functions netlify/functions --site <site-id>
+```
+
+(antes: Vercel con `npm run vercel:deploy` — legacy, ya no se usa).
