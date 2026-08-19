@@ -207,8 +207,10 @@ function createApp() {
 // Si se ejecuta directamente (node addon.js), arranca el servidor local
 if (require.main === module) {
   const port = process.env.PORT || 7000
-  serveHTTP(builder.getInterface(), { port })
-  console.log(`MeteGol addon corriendo en http://127.0.0.1:${port}/manifest.json`)
+  const app = createApp()
+  app.listen(port, () => {
+    console.log(`MeteGol addon corriendo en http://127.0.0.1:${port}/manifest.json`)
+  })
 }
 
 module.exports = { createApp, builder, manifest }

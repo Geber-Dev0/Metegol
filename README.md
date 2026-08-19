@@ -25,11 +25,13 @@ del día que ya listan las otras fuentes).
   servidores de terceros y los sirve a Stremio como streams reproducibles (URL forzada
   a `.m3u8` para que ExoPlayer/Media3 los reconozca como HLS), ordenados por
   **proveedor más estable primero** (la18hd.su > fubo18.com > streamtp-golden1.click, etc.).
-- En despliegue serverless (Netlify) los streams pasan por un **proxy HLS** (`lib/proxy.js`)
-  que descarga m3u8 y segmentos desde la misma IP del token y los reescribe, con
-  **doble vía**: URL tokenizada directa y, si falla, **re-extracción de la playlist
-  fresca** dentro de la misma invocación (segmentos por índice, inmune a la rotación
-  de nodos CDN y a la expiración de ~2 s de fubo18).
+- Los streams pasan por un **proxy HLS** (`lib/proxy.js`) que descarga m3u8 y
+  segmentos desde la misma IP del token y los reescribe, con **doble vía**: URL
+  tokenizada directa y, si falla, **re-extracción de la playlist fresca** dentro de
+  la misma invocación (segmentos por índice, inmune a la rotación de nodos CDN y a
+  la expiración de ~2 s de fubo18). El proxy corre en **tu PC** (IP residencial,
+  alcanzado vía túnel de Cloudflare) porque los proveedores bloquean o limitan las
+  IPs de datacenter (ver `docs/SERVIDOR.md`).
 - **Configurable** (zona horaria para los horarios): al instalar, Stremio abre
   `/configure` para elegir el timezone (Argentina, Perú, Chile, México, etc.).
 
@@ -67,15 +69,18 @@ npx netlify-cli deploy --prod --dir public --functions netlify/functions --site 
 ```
 
 Variables de entorno del sitio: `PUBLIC_BASE_URL` (URL del addon), `FOOTBALL_API_KEY` (API-Football).
-El proxy de streaming queda en la misma URL (`PROXY_BASE_URL` opcional; sin ella usa
-`PUBLIC_BASE_URL`). Fubo18 bloquea los rangos IP de Cloudflare Workers, por eso el proxy
-vive en Netlify y no en el Worker (`workers/proxy/`, desplegado como respaldo/alternativa).
+El streaming sale del **proxy local en tu PC** (IP residencial, no bloqueada por los
+proveedores) expuesto con un **túnel de Cloudflare**: se setea `PROXY_BASE_URL` con la
+URL del túnel (named tunnel estable, o quick tunnel temporal). Los proveedores bloquean
+las IPs de datacenter y los rangos de Cloudflare Workers, por eso el proxy **no** corre
+en Netlify ni en Workers. Ver [`docs/SERVIDOR.md`](docs/SERVIDOR.md).
 
 Después de desplegar, instala en Stremio la URL:
 `https://<tu-proyecto>.netlify.app/manifest.json`
 
 > Vercel ya no se usa como hosting (el plan free agotó el Fast Origin Transfer por el
 > streaming del proxy). El `vercel.json`/`api/index.js` quedan por compatibilidad.
+> El Worker de `workers/proxy/` queda como respaldo para hosts que no bloqueen a Cloudflare.
 
 ## Estructura del proyecto
 
@@ -90,6 +95,7 @@ MeteGol/
 ├── netlify/functions/addon.js  # handler Netlify Functions (serverless-http)
 ├── public/assets/          # assets estáticos que sirve Netlify (logo, fondo, favicon)
 ├── workers/proxy/          # Cloudflare Worker proxy HLS (respaldo; fubo18 bloquea sus IPs)
+├── scripts/embed-fonts.js  # genera lib/fonts-base64.js (fuentes embebidas para posters)
 ├── lib/
 │   ├── common.js           # helpers compartidos (fetch, decode, normalize, classify, TZ)
 │   ├── scraper.js          # fusión de fuentes + prioridad de proveedores
@@ -97,7 +103,8 @@ MeteGol/
 │   ├── scraper-agenda18.js     # consume agenda18.com/agenda.json (.mx / rojadirectaa)
 │   ├── scraper-deporflix.js    # streams complementarios de deporflix.pe (Dooplay AJAX, solo matchea eventos existentes)
 │   ├── extractor.js        # obtiene el m3u8 desde los endpoints de 3º
-│   ├── proxy.js            # proxy HLS doble vía (directo + re-extracción) en serverless
+│   ├── proxy.js            # proxy HLS doble vía (directo + re-extracción)
+│   ├── fonts-base64.js     # fuentes (DejaVu + Roboto) en base64 para posters en serverless
 │   ├── landing.js          # página /configure (INSTALL / INSTALL EN WEB / COPIAR URL)
 │   └── teamlogos.js        # portadas PNG (opentype->SVG->sharp) con escudos + nombres
 ├── assets/DejaVuSans-Bold.ttf  # fuente embebida para las portadas
@@ -105,6 +112,7 @@ MeteGol/
 └── docs/                   # documentación detallada
     ├── ARQUITECTURA.md
     ├── INSTALACION.md
+    ├── SERVIDOR.md         # PC dedicado 24/7 (proxy local + túnel + servicios Windows)
     ├── MANTENIMIENTO.md
     └── LEGAL.md
 ```
@@ -119,5 +127,6 @@ npm test     # valida que el scraping, el merge de fuentes y la extracción de m
 
 - [Arquitectura](docs/ARQUITECTURA.md) — cómo fluye la información paso a paso.
 - [Instalación](docs/INSTALACION.md) — uso local, despliegue en Netlify, HTTPS.
+- [Servidor dedicado](docs/SERVIDOR.md) — dejar un PC 24/7 como proxy de streaming (túnel + servicios).
 - [Mantenimiento](docs/MANTENIMIENTO.md) — dominios, tokens, troubleshooting.
 - [Legal](docs/LEGAL.md) — consideraciones sobre el contenido.

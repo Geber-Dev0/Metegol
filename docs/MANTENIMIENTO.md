@@ -34,14 +34,15 @@ deje de funcionar, seguí esta guía para diagnosticar y arreglar.
   redirigen si no viene el `Referer` adecuado. En `lib/extractor.js` se envía
   `Referer` alagulotv; para `la18hd.su` conviene `https://agenda18.com/`. Si un host
   nuevo lo exige, ajustá el referer por dominio.
-- Posible 3: el dominio del m3u8 bloquea la IP del servidor (datacenter). En Netlify la
-  IP es de un datacenter. El addon ya sirve los streams a través de `/proxy`
-  (`lib/proxy.js`), que descarga m3u8 y segmentos desde la misma IP del token, así que
-  el reproductor siempre coincide. Si un proveedor nuevo bloqueara la IP del datacenter
-  por completo (no solo el token), no hay fix salvo cambiar de hosting.
-- Posible 3b: el proveedor bloquea **a Cloudflare Workers por completo** (fubo18 lo hace:
-  403 al pedir el m3u8). Por eso el proxy principal vive en Netlify y
-  `workers/proxy/` queda como respaldo para hosts que no bloqueen a Cloudflare.
+- Posible 3: el dominio del m3u8 bloquea la IP que descarga el contenido. En la
+  arquitectura actual el streaming sale del **PC local** (IP residencial) vía el proxy
+  de `127.0.0.1:7000` (expuesto por el túnel de Cloudflare), y Netlify solo sirve
+  catálogo/portadas/streams con `PROXY_BASE_URL` apuntando al túnel. Como la IP
+  residencial coincide con la del token, el reproductor siempre recibe segmentos
+  válidos. Si un proveedor nuevo bloqueara esa IP por completo (no solo el token),
+  no hay fix salvo cambiar de IP/red.
+- Posible 3b: **el PC servidor está apagado o el túnel caído.** El streaming depende
+  del PC local (ver sección "El server no reproduce" abajo).
 - Posible 4: **DRM**. Los embeds de `tarjetarojita.xyz`/`proveseat.net` y `la10tv.com`
   usan cifrado/DRM y ya se descartan en `lib/scraper-agenda18.js`. Si aparece un
   proveedor nuevo con `_econfig`, `license` o `.mpd`, descartalo igual.
@@ -110,6 +111,44 @@ const PROVIDER_PRIORITY = {
   'streamx488.sbs': 5        // menos estable, al final
 }
 ```
+
+## El server no reproduce (PC servidor 24/7)
+
+El streaming sale del **PC local** vía el proxy de `127.0.0.1:7000` y el túnel de
+Cloudflare. Si el catálogo carga (Netlify responde) pero los streams no reproducen,
+el problema está en el PC/túnel. Diagnóstico en orden:
+
+1. **¿Está encendido el PC servidor?** Si hiberna/dormita, el túnel se cae.
+   - Configurar plan de energía: nunca dormir.
+2. **¿Están corriendo los servicios?**
+   ```powershell
+   Get-Service cloudflared, MeteGol
+   ```
+   - `MeteGol` (addon local): debe estar `Running`. Si no, `nssm start MeteGol`.
+   - `cloudflared`: debe estar `Running`. Si no, `net start cloudflared`.
+3. **¿Responde el proxy local?**
+   ```powershell
+   Invoke-WebRequest http://127.0.0.1:7000/manifest.json
+   ```
+4. **¿Responde el túnel?**
+   ```powershell
+   Invoke-WebRequest https://stream.metegol-live.eu.org/manifest.json
+   ```
+5. **¿Está el proxy local haciendo requests?** Revisar `addon.log`/`addon.err.log`
+   (configurados con NSSM): si el reproductor pide segmentos y el log crece, el
+   streaming fluye.
+
+### URLs que cambian (quick tunnel)
+
+Si se usa un *quick tunnel* (`trycloudflare`), la URL es aleatoria y **cambia en cada
+reinicio** de cloudflared. Eso rompe el streaming aunque el PC esté bien. Fix:
+
+1. Tomar la nueva URL del log de cloudflared.
+2. `npx netlify-cli env:set PROXY_BASE_URL https://nueva-url.trycloudflare.com --site <site-id>`
+3. Redeploy (los cambios de env no aplican sin redeploy).
+
+> Para evitar esto, usar el **túnel nombrado** con dominio propio
+> (`stream.metegol-live.eu.org`) — la URL nunca cambia. Ver `SERVIDOR.md`.
 
 ## Actualizar el addon
 

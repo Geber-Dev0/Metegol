@@ -168,10 +168,10 @@ flowchart TD
      trate el ítem como canal de TV jugable).
    - `defineStreamHandler` → por cada enlace del evento, extrae el m3u8 en paralelo y
      lo devuelve como stream (a través del proxy, forzando extensión `.m3u8`).
-   - `createApp()` monta Express + las rutas `/proxy` + `/poster/:id` + `/configure`
-     (página de instalación con botones INSTALL / INSTALL EN WEB / COPIAR URL) + el
-     **router** (`getRouter`) para serverless. Si se ejecuta `node addon.js`, usa
-     `serveHTTP` para el servidor local.
+    - `createApp()` monta Express + las rutas `/proxy` + `/poster/:id` + `/configure`
+      (página de instalación con botones INSTALL / INSTALL EN WEB / COPIAR URL) + el
+      **router** (`getRouter`) para serverless. `node addon.js` arranca `createApp()`
+      directamente (mismo servidor que en Netlify, para que el proxy local funcione).
 
 ## Modelo de datos de un evento
 
@@ -201,7 +201,7 @@ validez). Por eso:
 - El `id` del evento usa solo el título (sin token), para que el catálogo y el stream
   coincidan aunque pase el tiempo.
 
-## Despliegue serverless (Netlify)
+## Despliegue serverless (Netlify) + proxy local
 
 - `netlify.toml`: `publish = "public"`, funciones en `netlify/functions`, bundler
   `esbuild` con `sharp` como `external` (por los binarios nativos), redirect `/*` →
@@ -210,19 +210,23 @@ validez). Por eso:
   (los media se marcan como `binary` para que Netlify los sirva crudos: `image/png`,
   `video/mp2t`, `application/octet-stream`).
 - Env vars del sitio: `PUBLIC_BASE_URL` (URL pública del addon), `FOOTBALL_API_KEY`
-  (portadas). `PROXY_BASE_URL` opcional: si no está, el proxy usa `PUBLIC_BASE_URL`.
-- **Clave:** en Netlify (igual que en Vercel) los tokens quedan ligados a la IP del
-  datacenter, por eso el `defineStreamHandler` devuelve el m3u8 **envuelto en `/proxy`**
-  (`lib/proxy.js`), que descarga m3u8 y segmentos desde la misma IP del token y los
-  reescribe para el reproductor. Sin el proxy, el TV recibiría 403 (IP distinta a la
-  del token).
-- Consideraciones de Netlify: cada segmento `.ts` es una invocación de la función; el
-  plan free (deploy de funciones) alcanza holgado para uso personal.
+  (portadas). `PROXY_BASE_URL` apunta al **túnel de Cloudflare** hacia el PC local.
+- **Arquitectura final:** Netlify sirve manifest/catálogo/portadas/streams, pero el
+  **proxy HLS corre en el PC local** (`node addon.js` en `127.0.0.1:7000`). El
+  `defineStreamHandler` devuelve los m3u8 envueltos en la URL del túnel
+  (`PROXY_BASE_URL`), y el proxy local descarga m3u8 y segmentos desde la **IP
+  residencial**, con la que los tokens de los proveedores coinciden. Ver
+  [`SERVIDOR.md`](SERVIDOR.md).
+- **Por qué no en Netlify/Vercel:** los tokens quedan ligados a la IP del datacenter
+  y los proveedores (fubo18) bloquean las IPs de datacenter y los rangos de Cloudflare
+  Workers (403). Desde una IP residencial el flujo da 200.
+- Consideraciones de Netlify: cada segmento `.ts` NO consume invocaciones de la
+  función (el streaming va directo del túnel al reproductor); el plan free alcanza
+  holgado para catálogo/portadas.
 - **Por qué no Cloudflare Workers como proxy:** fubo18 **bloquea los rangos IP
-  compartidos de Workers** (403 al pedir el m3u8; el mismo flujo da 200 desde
-  Netlify/Vercel o una IP residencial). El port `workers/proxy/` queda desplegado como
-  respaldo para hosts que no bloqueen a Cloudflare; se activaría seteando
-  `PROXY_BASE_URL` a su URL.
+  compartidos de Workers** (403 al pedir el m3u8; el mismo flujo da 200 desde una IP
+  residencial). El port `workers/proxy/` queda desplegado como respaldo para hosts
+  que no bloqueen a Cloudflare; se activaría seteando `PROXY_BASE_URL` a su URL.
 - **Por qué se dejó Vercel:** el plan free de Vercel agota el **Fast Origin Transfer**
   (~10 GB/mes) por el streaming del proxy, así que el addon pasa a Netlify.
   `api/index.js`/`vercel.json` quedan por compatibilidad.
