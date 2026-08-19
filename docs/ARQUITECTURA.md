@@ -57,17 +57,26 @@ flowchart TD
      `embeds` (iframe con `r=<BASE64>`) y `country` (con bandera). Se descartan los
      embeds de `tarjetarojita.xyz`/`proveseat` (DRM cifrado) y `la10tv.com` (DRM).
    - `deporflix.pe` — WordPress con tema **Dooplay**; los partidos puntuales ("X vs Y")
-     se listan vía `wp-json/wp/v2/search?search=vs&per_page=20&_embed=1` (cada uno es
-     una página bajo `/canales/` con `data-post` = id del post). El embed se obtiene
-     con un POST a `/wp-admin/admin-ajax.php` (`action=doo_player_ajax&post=<id>&nume=1&type=movie`)
-     con header `X-Requested-With: XMLHttpRequest`, que devuelve
-     `{"embed_url":"https://la18hd.su/vivo/canales.php?stream=..."}` — el mismo formato
-     `canal.php` que ya maneja el proxy. Se filtran los resultados sin formato de
-     partido (p. ej. `/destacado/`).
+      viven como posts bajo `/canales/` (subtype `movies`) y se listan vía
+      `wp-json/wp/v2/search?search=vs&per_page=20&_embed=1`. El embed se obtiene
+      con un POST a `/wp-admin/admin-ajax.php` (`action=doo_player_ajax&post=<id>&nume=1&type=movie`)
+      con header `X-Requested-With: XMLHttpRequest`, que devuelve
+      `{"embed_url":"https://la18hd.su/vivo/canales.php?stream=..."}` — el mismo formato
+      `canal.php` que ya maneja el proxy. Se filtran los resultados sin formato de
+      partido (p. ej. `/destacado/`).
+      **Importante:** deporflix reutiliza posts fijos (mismos IDs desde 2024, solo les
+      actualiza el stream por dentro), por eso **no se listan como eventos propios**:
+      sus streams solo se agregan a un evento si matchea uno ya creado por las otras
+      fuentes (ver `mergeOnlyStreams`). Si no matchea el evento de hoy, se descarta —
+      evita que aparezcan partidos viejos "fijos" en el catálogo.
 
 2. **Scraper — `lib/scraper.js`**
-   - Descarga las **cuatro** fuentes en paralelo (`Promise.allSettled`, si una falla no
-     tumba al resto) y las fusiona con `mergeEvents()`.
+   - Descarga las **tres** fuentes principales en paralelo (`Promise.allSettled`, si una
+     falla no tumba al resto) y las fusiona con `mergeEvents()`.
+   - `mergeOnlyStreams(existing, extras)` agrega las fuentes complementarias
+     (deporflix): recorre sus eventos y, si el partido matchea uno ya existente (por
+     `normalizeTitle` o por pares de equipos con `eventTeamKeys`), fusiona sus streams
+     con `mergeStreams`; si no matchea, se descarta. Deporflix nunca crea eventos solos.
    - `mergeEvents()` deduplica por **título normalizado** (sin acentos, mayúsculas ni
      guiones) y combina los enlaces del mismo partido (`mergeStreams`).
    - `sortStreams()` ordena los enlaces de cada evento por **prioridad de proveedor**
@@ -87,9 +96,10 @@ flowchart TD
      (`img.agenda18.com/uploads/...`).
    - `lib/scraper-deporflix.js` — consulta la búsqueda de WordPress, filtra los items
      con formato de partido, hace el POST AJAX por cada uno (en paralelo) para obtener
-     el `embed_url`, y los agrega al merge con `source: 'DF'`. `classifyTitle()` mapea
-     nombres de competiciones conocidas (conferencias CONMEBOL, Liga MX, Serie A, etc.)
-     a un deporte/emoji; el resto se etiqueta como genérico.
+     el `embed_url`. Sus eventos se procesan con `mergeOnlyStreams` (solo se agregan a
+     eventos existentes). `classifyTitle()` mapea nombres de competiciones conocidas
+     (conferencias CONMEBOL, Liga MX, Serie A, etc.) a un deporte/emoji; el resto se
+     etiqueta como genérico.
 
 4. **Portadas — `lib/teamlogos.js`**
    - `parseTeams()` extrae hasta dos equipos del título (tras el primer `:` y separados

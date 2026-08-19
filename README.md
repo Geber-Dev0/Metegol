@@ -1,9 +1,10 @@
 # MeteGol ⚽
 
 Addon de **Stremio** para ver deportes en vivo (fútbol, UFC, tenis, F1 y más) a partir de la
-agenda de cuatro fuentes: [alangulotv.si](https://alangulotv.si), [futbollibretv.sx](https://futbollibretv.sx),
+agenda de [alangulotv.si](https://alangulotv.si), [futbollibretv.sx](https://futbollibretv.sx),
 [agenda18.com](https://agenda18.com) (backend de futbollibre.mx / rojadirectaa.net) y
-[deporflix.pe](https://deporflix.pe) (partidos puntuales "X vs Y").
+[deporflix.pe](https://deporflix.pe) (fuente complementaria: agrega streams a los partidos
+del día que ya listan las otras fuentes).
 
 > ⚠️ **Aviso importante:** Este addon redirige a streams de terceros no autorizados
 > (ESPN, Fox, TNT, etc.). Ver [`docs/LEGAL.md`](docs/LEGAL.md) antes de usarlo y, sobre
@@ -11,8 +12,10 @@ agenda de cuatro fuentes: [alangulotv.si](https://alangulotv.si), [futbollibretv
 
 ## ¿Qué hace?
 
-- Lee la **agenda del día** de cuatro fuentes y las **fusiona en un solo catálogo**,
-  deduplicando por título y combinando los enlaces del mismo partido.
+- Lee la **agenda del día** de las fuentes y las **fusiona en un solo catálogo**,
+  deduplicando por título y combinando los enlaces del mismo partido. Deporflix no crea
+  eventos propios: solo agrega su stream al partido si ya existe en otra fuente (match
+  por título o por pares de equipos), así nunca aparecen partidos viejos "fijos".
 - Lista los partidos/eventos en el catálogo de Stremio (`MeteGol Live`) con
   **portadas PNG generadas** (texto vectorial sin depender de fuentes del sistema):
   escudos de los equipos (vía TheSportsDB) cuando existen y **nombres de los equipos
@@ -89,10 +92,10 @@ MeteGol/
 ├── workers/proxy/          # Cloudflare Worker proxy HLS (respaldo; fubo18 bloquea sus IPs)
 ├── lib/
 │   ├── common.js           # helpers compartidos (fetch, decode, normalize, classify, TZ)
-│   ├── scraper.js          # fusión de las 4 fuentes + prioridad de proveedores
+│   ├── scraper.js          # fusión de fuentes + prioridad de proveedores
 │   ├── scraper-futbollibre.js  # parsea futbollibretv.sx/eventos.js
 │   ├── scraper-agenda18.js     # consume agenda18.com/agenda.json (.mx / rojadirectaa)
-│   ├── scraper-deporflix.js    # partidos puntuales de deporflix.pe (WordPress Dooplay AJAX)
+│   ├── scraper-deporflix.js    # streams complementarios de deporflix.pe (Dooplay AJAX, solo matchea eventos existentes)
 │   ├── extractor.js        # obtiene el m3u8 desde los endpoints de 3º
 │   ├── proxy.js            # proxy HLS doble vía (directo + re-extracción) en serverless
 │   ├── landing.js          # página /configure (INSTALL / INSTALL EN WEB / COPIAR URL)

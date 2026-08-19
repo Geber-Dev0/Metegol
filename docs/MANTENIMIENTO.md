@@ -7,7 +7,7 @@ deje de funcionar, seguí esta guía para diagnosticar y arreglar.
 
 | Capa | Ejemplo | Riesgo |
 |------|---------|--------|
-| Origen de la agenda | `alangulotv.si/agenda.php`, `futbollibretv.sx/eventos.js`, `agenda18.com/agenda.json`, `deporflix.pe` (WP REST + admin-ajax) | Cambian estructura o caen |
+| Origen de la agenda | `alangulotv.si/agenda.php`, `futbollibretv.sx/eventos.js`, `agenda18.com/agenda.json` (fuentes que crean eventos); `deporflix.pe` (WP REST + admin-ajax) como fuente complementaria | Cambian estructura o caen |
 | Endpoint de reproducción | `la18hd.su`, `streamtp-golden1.click`, `streamx488.sbs` | Caen, cambian de dominio, anti-hotlink |
 | Host del m3u8 | `fubo18.com`, `tudeporteshoy.xyz` | Tokens efímeros, bloqueos por IP |
 | Portadas | `thesportsdb.com` | Rate-limit, cambio de API |
@@ -78,7 +78,9 @@ deje de funcionar, seguí esta guía para diagnosticar y arreglar.
 
 - [ ] `npm test` devuelve eventos y al menos un m3u8 válido.
 - [ ] El primer evento reproduce en Stremio.
-- [ ] Las cuatro fuentes de agenda devuelven datos (verificar en catálogo).
+- [ ] Las tres fuentes principales de agenda devuelven datos (verificar en catálogo).
+- [ ] Deporflix solo agrega streams dentro de eventos existentes (nunca eventos solos
+      "fijos"); verificar que no aparezcan partidos de días anteriores.
 - [ ] Los endpoints de 3º conocidos siguen activos (ver abajo).
 
 ## Dominios conocidos (a agosto 2026)

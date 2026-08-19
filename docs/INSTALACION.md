@@ -33,7 +33,7 @@ servidor HTTP:
 npm test
 ```
 
-Muestra los eventos del día (fusionados de las 4 fuentes) y el primer `.m3u8` obtenido.
+Muestra los eventos del día (fusionados de las fuentes) y el primer `.m3u8` obtenido.
 
 ## 3. Despliegue público (HTTPS obligatorio)
 
