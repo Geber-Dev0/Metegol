@@ -6,7 +6,7 @@ const BASE = process.env.PUBLIC_BASE_URL || 'http://127.0.0.1:7000'
 
 module.exports = {
   id: 'com.metegol.live.v5',
-  version: '1.8.0',
+  version: '1.8.1',
   name: 'MeteGol',
   description:
     "Fútbol en vivo: las principales ligas de toda América y Europa. Si un canal no reproduce, probá con otro reproductor: el más estable es MPV. | Live football: the main leagues of all the Americas and Europe. If a channel doesn't play, try a different player: MPV is the most stable.",
